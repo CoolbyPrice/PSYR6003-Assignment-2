@@ -1,0 +1,64 @@
+---
+title: "PSYR6003-Assignment-2"
+author: "Colby Price"
+format: html
+editor: visual
+---
+
+```{r}
+#First, to load all the packages that I may require:
+library(flexplot)
+library(haven)
+library(tidyverse)
+
+#loading that .sav file
+perfect <- read_sav("PSYR6003.A2.sav")
+#lets view this data
+view(perfect)
+#joy
+
+#Want to convert that weird string to a factor variable
+perfect.NB <- perfect %>% 
+mutate(sex = as.factor(sex))
+perfect.NB <- filter(perfect.NB, sex == "Male" | sex == "Female")
+#I'm wanting to make sure this worked. so:
+print(perfect.NB$sex)
+#Neat. It'll do that stuff in the background
+
+#Want to put the subscale scores in there, meaning the means:
+#First, reverse code that reverse variable
+perfect.NBS <- perfect.NB %>% 
+mutate(across(matches("tipm.CONS2.3y"), ~ 8 - .))
+#lets view this data to see if I messed up
+view(perfect.NBS)
+#like the data set, perfect
+
+#Finally, let's start mutating the mean subscale scores:
+perfect.NBSM <- perfect.NBS %>% 
+  mutate(mps.mean = rowMeans(across(starts_with("mps")), na.rm = FALSE), 
+         negative.mean = rowMeans(select(perfect.NB, guilt1.3y:host3.3y), na.rm = FALSE),
+         tipm.mean = rowMeans(across(starts_with("tipm")), na.rm = FALSE))
+#to make sure I didn't mess up again:
+view(perfect.NBSM)
+```
+
+Research Question: What is the impact of sex, conscientiousness, and SPP on negative affect? *&/or*\
+Does SPP impact negative affect more than sex and conscientiousness?
+
+Linear Model: Negative Affect = b~0~ + (Sex \*\* b~1~) + (Conscientiousness \*\* b~2~) + (SPP \*\* b~3~) + E\
+Parameter(s) of Interest: Negative Affect = b~0~ + (Sex \*\* b~1~) + (Conscientiousness \*\* b~2~) + **(SPP \*\* b~3~)** + E
+
+Model Comparison: Negative Affect = b~0~ + (Sex \*\* b~1~) + (Conscientiousness \*\* b~2~) + (SPP \*\* b~3~) + E\
+Negative Affect = b~0~ + (Sex \*\* b~1~) + (Conscientiousness \*\* b~2~) + E
+
+```{r}
+#1.) Visualize the univariate distributions
+#reduced:
+flexplot(negative.mean~mps.mean+tipm.mean | sex, data = perfect.NBSM)
+#full:
+flexplot(negative.mean~tipm.mean | sex, data = perfect.NBSM)
+
+#Visualize the assumptions
+Full <- lm(negative.mean~mps.mean+tipm.mean | sex, data = perfect.NBSM)
+visualize(Full, plot = "residuals")
+```
