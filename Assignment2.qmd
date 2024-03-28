@@ -18,9 +18,8 @@ view(perfect)
 #joy
 
 #Want to convert that weird string to a factor variable
-perfect.NB <- perfect %>% 
-mutate(sex = as.factor(sex))
-perfect.NB <- filter(perfect.NB, sex == "Male" | sex == "Female")
+perfect.NB <- filter(perfect, sex == "Male" | sex == "Female")
+perfect.NB <- mutate(perfect.NB, sex = as.factor(sex))
 #I'm wanting to make sure this worked. so:
 print(perfect.NB$sex)
 #Neat. It'll do that stuff in the background
@@ -35,11 +34,42 @@ view(perfect.NBS)
 
 #Finally, let's start mutating the mean subscale scores:
 perfect.NBSM <- perfect.NBS %>% 
-  mutate(mps.mean = rowMeans(across(starts_with("mps")), na.rm = FALSE), 
-         negative.mean = rowMeans(select(perfect.NB, guilt1.3y:host3.3y), na.rm = FALSE),
-         tipm.mean = rowMeans(across(starts_with("tipm")), na.rm = FALSE))
+  mutate(mps.mean = rowMeans(across(starts_with("mps")), na.rm = F), 
+         negative.mean = rowMeans(across(guilt1.3y:host3.3y), na.rm = F),
+         tipm.mean = rowMeans(across(starts_with("tipm")), na.rm = F))
+#getting rid of the gross other vars
+perfect.NBSM <- select(perfect.NBSM, sex, mps.mean, negative.mean, tipm.mean)
 #to make sure I didn't mess up again:
 view(perfect.NBSM)
+```
+
+Descriptive Statistics:
+
+```{r}
+#means, medians, range:
+summary(perfect.NBSM)
+
+#standard deviations:
+sd(perfect.NBSM$mps.mean, na.rm = T)
+sd(perfect.NBSM$negative.mean, na.rm = T)
+sd(perfect.NBSM$tipm.mean, na.rm = T)
+
+#bivariate correlations:
+perfect.C <- mutate(perfect.NBSM, sex = as.numeric(factor(sex)))
+cor(perfect.C, use = "pairwise.complete.obs")
+
+```
+
+```{r}
+#visualization of bivariate relationships (for fun):
+a=flexplot(mps.mean~sex, data=perfect.NBSM)
+b=flexplot(tipm.mean~sex, data=perfect.NBSM)
+c=flexplot(negative.mean~sex, data=perfect.NBSM)
+d=flexplot(negative.mean~tipm.mean, data=perfect.NBSM)
+e=flexplot(negative.mean~mps.mean, data=perfect.NBSM)
+f=flexplot(tipm.mean~mps.mean, data=perfect.NBSM)
+library(patchwork)
+a+b+c+d+e+f
 ```
 
 Research Question: What is the impact of sex, conscientiousness, and SPP on negative affect? *&/or*\
@@ -52,13 +82,53 @@ Model Comparison: Negative Affect = b~0~ + (Sex \*\* b~1~) + (Conscientiousness 
 Negative Affect = b~0~ + (Sex \*\* b~1~) + (Conscientiousness \*\* b~2~) + E
 
 ```{r}
-#1.) Visualize the univariate distributions
-#reduced:
-flexplot(negative.mean~mps.mean+tipm.mean | sex, data = perfect.NBSM)
+#1. & 2.) Visualize the univariate distributions
 #full:
+flexplot(negative.mean~mps.mean+tipm.mean | sex, data = perfect.NBSM)
+#this looks wacky, so I want to see what it looks like a bit more:
+flexplot(negative.mean~mps.mean+tipm.mean | sex, data = perfect.NBSM, method = "quadratic", ghost.line = "black")
+#how about comparing to linear:
+flexplot(negative.mean~mps.mean+tipm.mean | sex, data = perfect.NBSM, method = "linear")
+#yea, no, let's go with quadratic it's prettier
+#reduced:
 flexplot(negative.mean~tipm.mean | sex, data = perfect.NBSM)
 
-#Visualize the assumptions
-Full <- lm(negative.mean~mps.mean+tipm.mean | sex, data = perfect.NBSM)
-visualize(Full, plot = "residuals")
+
+#3.) Visualize the assumptions
+full <- lm(negative.mean~mps.mean + tipm.mean + sex, data = perfect.NBSM)
+full.q <- lm(negative.mean~mps.mean +tipm.mean + sex + I(mps.mean^2), data = perfect.NBSM)
+visualize(full, plot = "residuals")
+visualize(full.q, plot = "residuals")
+
+#Full:
+#Normality: Fairly normally distributed
+#Linearity: Not linear
+#Homoskedasticity:Variance in the groups
+
+#Full.q:
+#Normality: Fairly normally distributed
+#Linearity/Dependence: Better than the other model we tried.
+#Homoskedaticity: Variance remains wild
+```
+
+```{r}
+#robust that error to see if it fixes it?
+library(MASS)
+robust_full <- rlm(negative.mean~mps.mean + tipm.mean + sex + I(mps.mean^2), data = perfect.NBSM) 
+#Is this good? No, but let's keep going anyway. I'll use the full.q model because they're practically the same visually speaking:
+visualize(robust_full)
+```
+
+```{r}
+
+#saving the reduced
+reduced <- lm(negative.mean~tipm.mean + sex, data = perfect.NBSM)
+
+#Next, we're going to have to run the model comparison of the new robust model and the reduced model:
+model.comparison(full.q, reduced)
+#The full.q model seems to be better for our study's purpose
+
+#Let's do some estimates and stuff:
+estimates(full.q)
+summary(full.q)
 ```
